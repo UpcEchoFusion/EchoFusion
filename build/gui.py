@@ -1,18 +1,22 @@
 import csv
 import heapq
-
+import numpy as np
+import graphviz as gv
+import math
 from pathlib import Path
 from tkinter import Tk, Canvas, Entry, Text, Button, PhotoImage
 
 #-------------------------------------------------------- Logica del programa para encontrar canciones ---------------------------------------------------------------------------------
 
 #Getting the list of the names from the dataset
+artistsList = {}
 nameList = []
 def getNameList():
     csv_file = csv.reader(open('Spotify-2000.csv', 'r'))
     next(csv_file)
     for lines in csv_file:
         nameList.append(lines[1])
+        artistsList[lines[1]] = lines[2]
 
 #Getting the list of the edges from the .csv file created
 songsRelations = []
@@ -22,6 +26,7 @@ def readCsvFile():
     for lines in csv_file:
         songsRelations.append([lines[0],lines[1],lines[2]])
 
+
 #Implement prim algorithm, modified to return the mst_tree instead of the min weight
 def prim_mst(graph, quantity_nodes, nodo_inicial=0):
     priority_queue = []
@@ -29,7 +34,7 @@ def prim_mst(graph, quantity_nodes, nodo_inicial=0):
     min_weight = 0
     mst_edges = []
     mst_tree = []
-    max_quantity = 10
+    #max_quantity = 100
     counter = 0
 
     heapq.heappush(priority_queue, (0, nodo_inicial))
@@ -54,9 +59,9 @@ def prim_mst(graph, quantity_nodes, nodo_inicial=0):
 
     #sets the mst_tree with a max of 10 songs
     for edge in mst_edges:
-        if counter < max_quantity:
-          mst_tree.append([edge[0], edge[1]])
-        counter += 1
+        #if counter < max_quantity:
+        mst_tree.append([edge[0], edge[1]])
+        #counter += 1
         
     return mst_tree
 
@@ -64,8 +69,8 @@ def prim_mst(graph, quantity_nodes, nodo_inicial=0):
 
 def get_songs(songsRecomended, songList):
     songsRecomendedName = []
-    for key, val in songList.items():
-        for i in range(len(songsRecomended)):
+    for i in range(len(songsRecomended)):
+        for key, val in songList.items():
             if val == songsRecomended[i][0]:
                 songsRecomendedName.append(key)
     return songsRecomendedName
@@ -103,12 +108,51 @@ for i in range(len(newSongsRelations)):
     graph[newSongsRelations[i][0]].append((newSongsRelations[i][1],(newSongsRelations[i][2])))
     graph[newSongsRelations[i][1]].append((newSongsRelations[i][0],(newSongsRelations[i][2])))
 
+## Método para gráficar el grafo
+def drawGraph(G, directed=False, weighted=False, path=[], layout="neato"):
+  graph = gv.Digraph("digrafo") if directed else gv.Graph("grafo")
+  graph.graph_attr["layout"] = layout
+  graph.edge_attr["color"] = "gray"
+  graph.node_attr["color"] = "orangered"
+  graph.node_attr["width"] = "0.1"
+  graph.node_attr["height"] = "0.1"
+  graph.node_attr["fontsize"] = "8"
+  graph.node_attr["fontcolor"] = "mediumslateblue"
+  graph.node_attr["fontname"] = "monospace"
+  graph.edge_attr["fontsize"] = "8"
+  graph.edge_attr["fontname"] = "monospace"
+  n = len(G)
+  added = set()
+  for v, u in enumerate(path):
+    if u != -1:
+      if weighted:
+        graph.edge(str(u), str(v), str(G[u, v]), dir="forward", penwidth="2", color="orange")
+      else:
+        graph.edge(str(u), str(v), dir="forward", penwidth="2", color="orange")
+      added.add(f"{u},{v}")
+      added.add(f"{v},{u}")
+  for u in range(n):
+    for v in range(n):
+      draw = False
+      if G[u, v] > 0 and not directed and not f"{u},{v}" in added:
+        added.add(f"{u},{v}")
+        added.add(f"{v},{u}")
+        draw = True
+      elif directed:
+        draw = True
+      if draw:
+        if weighted:
+          graph.edge(str(u), str(v), str(G[u, v]))
+        else:
+          graph.edge(str(u), str(v))
+  return graph
+
 
 #-------------------------------------------------------- Logica del programa para crear la GUI ---------------------------------------------------------------------------------
 
 # Copiar la ruta de los assets del build para que el programa pueda correr, version portable en progreso
-OUTPUT_PATH = Path(__file__).parent
-ASSETS_PATH = OUTPUT_PATH / Path(r"C:\Users\Jorge\Documents\Archivos varios\Proyectos\Proyectos VS Code\EchoFusion-main\build\assets\frame0")
+OUTPUT_PATH = Path(__file__).parent 
+ASSETS_PATH = OUTPUT_PATH / Path(r"C:\Users\STEVENS\Desktop\CARPETAS\CLASES-UPC\CICLOS\Ciclo-6\Cursos\Comple\trabajo\TF\EchoFusion\build\assets\frame0")
 
 def relative_to_assets(path: str) -> Path:
     return ASSETS_PATH / Path(path)
@@ -235,23 +279,43 @@ entry_2.place(
     height=23.0
 )
 
+
+
 # Funcion para generar la lista de canciones
 def generateListSongs():
     entry_3.config(state= "normal")
     entry_3.delete('1.0', 'end')
-    
+    counter = 0
+    max = 10
     lstSongsRecommended = []
-    
+    showList = []
+    graphList = [[0]*11]*11
+    weightListForGraph = [0]
     songName = entry_1.get()
+    artistName = entry_2.get()
     nodo_inicial = songsList[songName]
     songsRecomended = prim_mst(graph, nDataSet, nodo_inicial)
     lstSongsRecommended = get_songs(songsRecomended,songsList)
-    
     for i in range(0, len(lstSongsRecommended)):
-        entry_3.insert('1.0', f"{ i + 1 }: { lstSongsRecommended[i] }\n")
-    entry_3.config(state= "disabled")    
+        if(counter < max):
+            if(artistsList[lstSongsRecommended[i]] != artistName):
+                showList.append(lstSongsRecommended[i])
+                counter += 1
+                weightListForGraph.append(songsRecomended[i][1])
 
-    print(f"Lista de canciones recomendadas: {lstSongsRecommended}")
+    graphList[[0][0]] = weightListForGraph
+    graphicGraph = np.array(graphList)
+
+    print(showList)
+    for i in range(0, len(showList)):
+        entry_3.insert('1.0', f"{ i + 1 }: { showList[i] }\n")
+    entry_3.config(state= "disabled")    
+    showGraph = drawGraph(graphicGraph, weighted=True)
+    showGraph.render('grafo_output',format='png', cleanup=True)
+    #entry_4.insert()
+    #entry_4.config(state= "disabled")
+    
+    print(f"Lista de canciones recomendadas: {showList}")
 
 # Boton para generar canciones
 button_image_1 = PhotoImage(
